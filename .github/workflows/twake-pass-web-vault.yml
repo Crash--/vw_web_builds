@@ -1,0 +1,47 @@
+name: Twake Pass web vault
+
+on:
+  push:
+    branches: ["twake-pass/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:oss:selfhost
+        working-directory: apps/web
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-vault
+          path: apps/web/build
+          if-no-files-found: error
+
+  check:
+    runs-on: ubuntu-24.04
+    env:
+      INVITE_DIR: apps/web/src/app/admin-console/organizations/members/components/invite-members-dialog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx jest "$INVITE_DIR"
+      # The templates are left out: the tailwind lint rule needs apps/browser, which this repo drops.
+      - run: npx eslint "$INVITE_DIR"/*.ts libs/assets/src/svg/svgs/*.ts apps/web/src/app/core/router.service.ts
+        if: ${{ !cancelled() }}
+      - run: npx prettier --check "$INVITE_DIR" libs/assets/src/svg/svgs .github/workflows/twake-pass-web-vault.yml
+        if: ${{ !cancelled() }}
