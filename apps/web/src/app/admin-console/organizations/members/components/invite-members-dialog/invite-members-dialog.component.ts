@@ -9,7 +9,17 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { combineLatest, firstValueFrom, map, Observable, of, shareReplay, switchMap } from "rxjs";
+import {
+  combineLatest,
+  debounceTime,
+  firstValueFrom,
+  from,
+  map,
+  Observable,
+  of,
+  shareReplay,
+  switchMap,
+} from "rxjs";
 
 import {
   CollectionAdminService,
@@ -75,6 +85,7 @@ import { revokedEmailsValidator } from "../member-dialog/validators/revoked-emai
 // header comment in by-link-tab-tour.component.ts for the full removal checklist.
 import { ByLinkTabTourComponent } from "./by-link-tab-tour.component";
 import { ByLinkTabComponent } from "./by-link-tab.component";
+import { ContactSuggestService } from "./contact-suggest.service";
 
 export interface InviteMembersDialogParams {
   organizationId: string;
@@ -129,6 +140,7 @@ export class InviteMembersDialogComponent {
   private readonly organizationService = inject(OrganizationService);
   private readonly toastService = inject(ToastService);
   private readonly memberActionsService = inject(MemberActionsService);
+  private readonly contactSuggestService = inject(ContactSuggestService);
 
   private readonly byLinkTab = viewChild(ByLinkTabComponent);
 
@@ -265,6 +277,35 @@ export class InviteMembersDialogComponent {
   });
   protected readonly customUserTypeSelected = computed(
     () => this.formTypeValue() === OrganizationUserType.Custom,
+  );
+
+  /**
+   * Suggestions for the address being typed, each carrying the whole field value to select: the
+   * addresses already entered are kept and only the last one is replaced.
+   */
+  protected readonly emailSuggestions = toSignal(
+    this.formGroup.controls.emails.valueChanges.pipe(
+      debounceTime(200),
+      switchMap((value) => {
+        const typed = value ?? "";
+        const lastComma = typed.lastIndexOf(",");
+        const current = typed.slice(lastComma + 1);
+        const prefix = typed.slice(0, lastComma + 1) + current.slice(0, current.search(/\S|$/));
+        const entered = parseCommaSeparatedEmails(typed.slice(0, lastComma + 1));
+        const query = current.trim();
+        if (query.length < 2) {
+          return of([]);
+        }
+        return from(this.contactSuggestService.suggest(query)).pipe(
+          map((contacts) =>
+            contacts
+              .filter((c) => !entered.includes(c.email))
+              .map((c) => ({ label: c.name, value: prefix + c.email })),
+          ),
+        );
+      }),
+    ),
+    { initialValue: [] as { label: string; value: string }[] },
   );
 
   constructor() {

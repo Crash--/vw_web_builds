@@ -29,6 +29,7 @@ import { GroupApiService, UserAdminService } from "../../../core";
 import { OrganizationUserView } from "../../../core/views/organization-user.view";
 import { MemberActionsService } from "../../services/member-actions/member-actions.service";
 
+import { ContactSuggestService } from "./contact-suggest.service";
 import {
   InviteMembersDialogComponent,
   InviteMembersDialogParams,
@@ -238,6 +239,7 @@ export default {
       imports: [InviteMembersDialogComponent],
       providers: [
         { provide: DialogRef, useValue: mockDialogRef },
+        { provide: ContactSuggestService, useValue: { suggest: () => Promise.resolve([]) } },
         { provide: DialogService, useValue: mockDialogService },
         { provide: AccountService, useValue: mockAccountService },
         { provide: ToastService, useValue: mockToastService },

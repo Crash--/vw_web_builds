@@ -83,7 +83,15 @@
     ) {
       <bit-form-field>
         <bit-label>{{ "email" | i18n }}</bit-label>
-        <input id="emails" type="text" appAutoFocus bitInput formControlName="emails" />
+        <input
+          id="emails"
+          type="text"
+          appAutoFocus
+          bitInput
+          formControlName="emails"
+          list="email-suggestions"
+          autocomplete="off"
+        />
         @if (inviteInfo.isDynamicSeatPlan) {
           <bit-hint>{{ "inviteMultipleEmailsNoSeatLimit" | i18n: inviteInfo.batchLimit }}</bit-hint>
         }
@@ -100,6 +108,11 @@
           <bit-hint>{{ "inviteZeroEmailDesc" | i18n }}</bit-hint>
         }
       </bit-form-field>
+      <datalist id="email-suggestions">
+        @for (suggestion of emailSuggestions(); track suggestion.value) {
+          <option [value]="suggestion.value" [label]="suggestion.label"></option>
+        }
+      </datalist>
     }
     <bit-form-field>
       <bit-label>

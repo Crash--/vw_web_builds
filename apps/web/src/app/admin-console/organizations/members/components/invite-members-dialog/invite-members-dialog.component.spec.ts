@@ -14,6 +14,7 @@ import { DIALOG_DATA, DialogRef, ToastService } from "@bitwarden/components";
 import { GroupApiService } from "../../../core";
 import { MemberActionsService } from "../../services";
 
+import { ContactSuggestService } from "./contact-suggest.service";
 import {
   InviteMembersDialogComponent,
   InviteMembersDialogParams,
@@ -26,6 +27,7 @@ interface Harness {
   fixture: ComponentFixture<InviteMembersDialogComponent>;
   component: InviteMembersDialogComponent;
   memberActionsService: MockProxy<MemberActionsService>;
+  contactSuggestService: MockProxy<ContactSuggestService>;
 }
 
 async function createComponent(): Promise<Harness> {
@@ -52,6 +54,9 @@ async function createComponent(): Promise<Harness> {
   const memberActionsService = mock<MemberActionsService>();
   memberActionsService.invite.mockResolvedValue({ success: true });
 
+  const contactSuggestService = mock<ContactSuggestService>();
+  contactSuggestService.suggest.mockResolvedValue([]);
+
   const params: InviteMembersDialogParams = {
     organizationId: ORG_ID,
     isOnSecretsManagerStandalone: false,
@@ -71,12 +76,18 @@ async function createComponent(): Promise<Harness> {
       { provide: OrganizationService, useValue: organizationService },
       { provide: ToastService, useValue: mock<ToastService>() },
       { provide: MemberActionsService, useValue: memberActionsService },
+      { provide: ContactSuggestService, useValue: contactSuggestService },
     ],
   }).compileComponents();
 
   const fixture = TestBed.createComponent(InviteMembersDialogComponent);
 
-  return { fixture, component: fixture.componentInstance, memberActionsService };
+  return {
+    fixture,
+    component: fixture.componentInstance,
+    memberActionsService,
+    contactSuggestService,
+  };
 }
 
 /** Reaches past `protected` the way the template does, to drive the emails control. */
@@ -135,6 +146,41 @@ describe("InviteMembersDialogComponent", () => {
       await component.submit();
 
       expect(memberActionsService.invite).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("email suggestions", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    async function typeAndWait(component: InviteMembersDialogComponent, emails: string) {
+      setEmails(component, emails);
+      await jest.advanceTimersByTimeAsync(250);
+      return (component as any).emailSuggestions() as { label: string; value: string }[];
+    }
+
+    it("replaces only the address being typed", async () => {
+      const { component, contactSuggestService } = await createComponent();
+      contactSuggestService.suggest.mockResolvedValue([
+        { name: "User Two", email: "two@example.com" },
+        { name: "User One", email: "one@example.com" },
+      ]);
+
+      const suggestions = await typeAndWait(component, "one@example.com, tw");
+
+      expect(contactSuggestService.suggest).toHaveBeenCalledWith("tw");
+      expect(suggestions).toEqual([
+        { label: "User Two", value: "one@example.com, two@example.com" },
+      ]);
+    });
+
+    it("does not ask for fewer than two characters", async () => {
+      const { component, contactSuggestService } = await createComponent();
+
+      const suggestions = await typeAndWait(component, "a@b.c, t");
+
+      expect(contactSuggestService.suggest).not.toHaveBeenCalled();
+      expect(suggestions).toEqual([]);
     });
   });
 });
